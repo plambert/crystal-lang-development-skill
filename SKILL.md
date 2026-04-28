@@ -1,257 +1,221 @@
 ---
 name: crystal-development
-description: >
-  Best practices, style rules, and tooling workflow for Crystal programming language development.
-  Use this skill whenever writing, reviewing, or refactoring Crystal source code, working with
-  shards, setting up tests, handling CLI argument parsing, working with time/duration types,
-  or configuring ameba. Also use when the user mentions .cr files, shard.yml, crystal spec,
-  or asks about Crystal idioms, nillability, enums, properties, or stdlib types.
+description: Follow best practices when working with the crystal programming language.
 ---
 
-# Crystal Development
+## Crystal language code requirements
 
-This skill covers Paul's preferred style and tooling for Crystal (targeting 1.19+/1.20).
-For topics marked **→ see reference**, load the relevant file from `references/`.
+### Formatting Crystal language files with `crystal tool format`
 
-## Tooling Workflow
+Code written in Crystal must always be formatted with `crystal tool format src/to/file.cr` before being committed to git.
 
-### Formatting
-Always format before committing:
-```
-crystal tool format src/path/to/file.cr
-```
-Format the whole project at once with `crystal tool format` from the root (no path argument).
+### Checking Crystal language files for style and good practices with `ameba`
 
-### Linting with ameba
-Always run ameba after formatting. Fix everything it reports **except** `Metrics/CyclomaticComplexity`
-on long `case` statements, which should instead be suppressed with a comment:
+Code written in Crystal should pass ameba tests; these can be run with `ameba` in the root directory of the repository. Ameba is configured by a `.ameba.yml` file in the root of the repository. It should be created with the below setting if it does not exist.
 
-```crystal
-# ameba:disable Metrics/CyclomaticComplexity
-def dispatch(command : Command) : Nil
-  case command
-  in .start?  then start
-  in .stop?   then stop
-  # ...
-  end
-end
-```
+#### Ameba's `.ameba.yml` file
 
-Every repo needs `.ameba.yml` at the root. Create it if absent:
-```yaml
+Any repository with Crystal code that does not have a file `.ameba.yml` in the root of the repository should have one created with the following content:
+
+```YAML
 Metrics/CyclomaticComplexity:
   MaxComplexity: 20
 ```
 
-### Building and testing
-```bash
-shards install                          # after clone
-shards update                           # after editing shard.yml
-shards build --error-trace              # production build
-crystal build --error-trace -o bin/foo examples/foo.cr   # one-off
-crystal spec -v --error-trace           # run tests
+#### Disabling ameba warnings
+
+Methods that have a long case statement can be prepended with the comment below to disable the ameba warning:
+
+```
+# ameba:disable Metrics/CyclomaticComplexity
 ```
 
-- Create exploratory programs under `examples/`; promote them to `spec/` tests when they stabilize.
-- Prefer **Spectator** over stdlib Spec. → see `references/testing.md`
+### Building and testing code
 
----
+Run `shards install` to install any dependencies in the `shard.yml` file; run `shards update` when the `shard.yml` file is updated.
 
-## Properties and Attribute Macros
+Always run `Spec` tests with `crystal spec -v --error-trace`.
 
-Always use a macro (`property`, `getter`, `setter`, and their variants) — never bare `@ivar` declarations.
+Always build crystal programs with `shards build --error-trace`, and test programs with `crystal build --error-trace -o bin/test_program test_program.cr`.
 
-| Macro | Use when |
-|---|---|
-| `property foo : T` | Read + write |
-| `getter foo : T` | Read-only |
-| `setter foo : T` | Write-only |
-| `property? closed : Bool` | Bool; generates `#closed?` getter |
-| `property! foo : T` | Starts nil, raises on nil access; also creates `#foo?` nilable getter |
+Create test programs in the repository under `examples/`, and whenever possible, turn them into `Spec` tests under `spec/`.
 
-`property!` is for values that are set before first use but not during `initialize`. It is unsafe if
-the value could be mutated by another Fiber. Use it only when the lifecycle is clear.
+### Nillable values
 
----
+In Crystal it's very important to handle nillable attribute values well. There are two approaches to this, and the approach to use depends on the expected significance of a `nil` value in the attribute.
 
-## Nillability
+#### Avoid `.not_nil!`
 
-Never use `.not_nil!`. Use one of these patterns instead.
+Avoid using the `.not_nil!` method; there are very few cases where it is the correct approach. Instead use one of the approaches below to create a local value that the compiler can be certain is not `nil`.
 
-### `if` block — for brief, local use
-```crystal
+#### Using an `if` block for nillable values
+
+When a value might be `nil` and is only used in one or two statements, it is often best to assign it to a local variable and test for `nil`. When the value cannot be `Bool`, and more specifically `false`, it is idiomatic to write this, for example, to use the `@thing` attribute when it might be `nil`:
+
+```Crystal
 if thing = self.thing
-  thing.do_something   # compiler knows thing is not nil here
+  # use `thing` without needing to worry about it being `nil`
 end
+
 ```
-This only works when the value cannot be `false` (i.e., not `Bool | Nil`).
 
-### `Guard` — for methods that hinge on a nilable attribute
+#### Gating an entire method on a nillable value using `Guard`
 
-Add to `shard.yml`:
-```yaml
+Often, we want to create a method that will return `nil` when an attribute is `nil`, but otherwise perform many tasks with it. Or else, we want the method to raise an exception if the attribute is `nil`.
+
+For this, we use the `Guard` module. Add this to the `shard.yml` file and run `shards` to install the module; this only needs to be done once.
+
+```YAML
 dependencies:
   guard:
     github: plambert/guard.cr
 ```
 
-Include in any class/module/struct/enum: `include Guard`
+Then in any class, module, enum, or struct, put `include Guard` at the start.  Then use one of these two forms:
 
-```crystal
-# Return nil if @thing is nil or false:
-def process?(params)
-  thing = guard self.thing
-  thing.do_work(params)
-end
+##### Using `Guard` to return `nil` from a method when an attribute is `nil`
 
-# Raise if @thing is nil or false:
-def process(params)
-  thing = guard self.thing { RuntimeError.new "@thing must not be nil" }
-  thing.do_work(params)
-end
+```Crystal
+class Foo
+  include Guard
 
-# Allow false values through (only nil triggers the guard):
-def process(params)
-  thing = guard! self.thing
-  thing.do_work(params)
-end
-```
-
----
-
-## Naming
-
-- **No single-letter variable names** — not even in small blocks. `i`, `j`, `x`, `n` are all banned.
-  Use descriptive names: `item_index`, `column_count`, `byte_value`.
-- Exception: `a` and `b` in `sort` block parameters are fine.
-- Do not use `_name` with a leading underscore to suppress "unused variable" warnings without a comment
-  explaining why the variable is intentionally ignored.
-
----
-
-## String Interpolation
-
-Interpolation calls `#to_s` implicitly. Never write `"value is #{thing.to_s}"` —
-write `"value is #{thing}"`. Using `#inspect` inside interpolation is fine when appropriate.
-
----
-
-## Exhaustive `case` Statements
-
-Always prefer `case … in … end` (no `else`) over `case … when … end` for type unions and enums.
-The compiler will enforce that all cases are covered.
-
-```crystal
-# Union type
-def format_amount(amount : String | Int32) : String
-  case amount
-  in String then amount
-  in Int32  then " " * amount
+  def a_method?(params)
+    # return `nil` if @thing is `nil` or `false`, otherwise proceed
+    thing = guard self.thing
+    # proceed here knowing that `thing` cannot be `nil`.
   end
 end
+```
 
-# Enum — use predicate methods, not == comparisons
-case output_format
-in .text?       then format_text(io)
-in .ansi_color? then format_ansi_color(io)
-in .json?       then format_json(io)
+##### Using `Guard` to raise an `Exception` from a method when an attribute is `nil`
+
+```Crystal
+class Foo
+  include Guard
+
+  def a_method(params)
+    # raise an exception if @thing is `nil` or `false`, otherwise proceed
+    thing = guard self.thing { RuntimeError.new "expected @thing to not be nil or false" }
+    # proceed here knowing that `thing` cannot be `nil`.
+  end
 end
 ```
 
-A `Symbol` can be passed where a non-union enum parameter is expected (`:text` for `OutputFormat::Text`).
+##### Allowing `false` values with `Guard`
 
----
+Use `guard!` (with the exclamation point) if you want `false` values to be allowed; otherwise it is identical to `guard`.
 
-## In-Place Array/Collection Mutation
 
-When you have an ephemeral intermediate collection (one that was just created by a method call and
-isn't shared), prefer in-place mutation methods over allocating a second copy:
+#### Using `property!` for values that are definitely not `nil` at the time a method is run
 
-```crystal
-# ✓ Preferred: sort! mutates the Array returned by .values — no second allocation
-some_hash.values.sort!
+In the rare case when a value starts out `nil` during initialization, but we know that a method won't be called until after it is definitely given a not-nil value, we can change `property` to `property!`.
 
-# ✗ Avoid: .sort allocates a new Array
-some_hash.values.sort
+For example, `property! thing : String | Int32` will create `@thing` as nillable, but `self.thing` will raise an Exception if `@thing` is nil, so we can use it anywhere we are certain it is not `nil`.
 
-# ✓ Also applies to map!, select!, reject!, uniq!, reverse!, shuffle!
-records.map! { |record| transform(record) }
-```
+In addition it creates a `self.thing?` method that will return `@thing` directly, as a nillable value, which is convenient for tests:
 
-This is safe when: (a) the array was just created for local use, (b) no other reference holds it,
-and (c) the element type is the same before and after (required for `map!`).
-
----
-
-## Block Arguments in Method Definitions
-
-If a method yields, declare it with `&` as the final parameter. Add a type signature where it
-aids clarity without sacrificing flexibility:
-
-```crystal
-# Yields an Item, return value ignored
-def each_valid(items : Array(Item), & : Item ->) : Nil
-  items.each { |item| yield item }
-end
-
-# Yields an Item, expects a Bool back (used to filter)
-def select_valid(items : Array(Item), & : Item -> Bool) : Array(Item)
-  items.select { |item| yield item }
+```Crystal
+if self.thing?
+  self.thing.method # we know it isn't `nil`
 end
 ```
 
----
+There is a **MAJOR CAVEAT** with this approach, which is that an attribute value can be changed at any time by another `Fiber` of execution, so it is only safe to use this if we know the value will never be changed in another `Fiber` of execution.
 
-## Time and Duration (Crystal 1.19+)
+### Using `property?` for `Bool` attributes
 
-`Time.monotonic` is **deprecated**. Use `Time::Instant` instead.
+Instead of using `property closed : Bool`, we should use `property? closed : Bool`. This will create the getter as `#closed?` with the question mark. That makes it much clearer that it is a boolean value. Do not use this for `Bool?` or other nillable values.
 
-```crystal
-# Measuring elapsed time
-start = Time.instant
-do_work
-elapsed = start.elapsed   # => Time::Span
+### Always use a macro to specify getters and setters for attributes of a class or struct.
 
-# Measuring a block
-elapsed = Time.measure { do_work }   # => Time::Span
+While it's possible to do this:
 
-# Sleep always takes a Time::Span, never a bare number
-sleep 500.milliseconds
-sleep 2.seconds
-sleep 1.5.minutes
-
-# Storing a deadline or start point: use Time::Instant, not Time::Span
-property started_at : Time::Instant = Time.instant
+```Crystal
+class Foo
+  @thing : String | Int32 = "foo"
+  # ...
+end
 ```
 
-`Time::Instant` represents a point on the monotonic timeline.
-`Time::Span` represents a duration. They are no longer the same type.
+It is always better to use `property`, `property!`, or `property?`.
 
----
+If only a getter is needed, use `getter`, `getter!`, or `getter?`.  And if only a setter is needed, use `setter`, `setter!`, or `setter?`.
 
-## CLI Argument Parsing
+### String interpolation implies `.to_s`.
 
-→ see `references/cli.md`
+When interpolating a value into a `String` literal, do not use `#to_s` explicitly, as it is called during interpolation.  In other words do not write `"we have a #{thing.to_s}"` but instead merely `"we have a #{thing}"`. It _is_ OK to use `#inspect` if it's appropriate.
 
----
+### Use descriptive variable names
 
-## Testing with Spectator
+Do not use `i` or `j` as a variable name, even in a small block. Always use a more descriptive name, so that future additions don't leave it indecipherable.
 
-→ see `references/testing.md`
+For example, instead of `things.each_with_index { |thing, i| STDOUT.printf "%3d %s\n", i, thing }` we should write `things.each_with_index { |thing, thing_index| STDOUT.printf "%3d %s\n", thing_index, thing }`.
 
----
+One exception is for the parameters to a block passed to `sort`; these can be `a` and `b`.
 
-## `shard.yml` Dependencies Reference
+### Include block arguments in method definitions
 
-Common shards used in Paul's projects:
+If a method will `yield`, it should be defined with `&` as the final argument. Where it helps clarity and does not limit flexibility, specify a `Type` for the block, like `def method(something, something_else, & : Int32 -> Bool` if an `Int32` will be yielded, and a `Bool` is expected as the return value.
 
-```yaml
-dependencies:
-  guard:
-    github: plambert/guard.cr
+### Exhaustive `case` statements
 
-development_dependencies:
-  spectator:
-    gitlab: arctic-fox/spectator
-    version: "~> 0.11"
+#### Value types
+
+When using a `case` statement to check the type of a value, use `case ... in ... end` instead of `case ... when ... end`.  For example:
+
+```Crystal
+def indent(amount : String | Int32) : String
+  case amount
+  in String
+    amount
+  in Int32
+    " " * amount
+  end
+end
+```
+
+This form does _not_ allow an `else` statement, and requires that all possible types be included.
+
+#### Enum types
+
+When using a `case` statement to check an `Enum` value, use `case ... in ... end` to allow the compiler to enforce an exhaustive check.  For example:
+
+```Crystal
+enum OutputFormat
+  Text
+  AnsiColor
+  Markdown
+  HTML
+  JSON
+  YAML
+end
+
+def format(io, output_format : OutputFormat) : Nil
+  case output_format
+  in .text?
+    format_text(io)
+  in .ansi_color?
+    format_ansi_color(io)
+  in .markdown?
+    format_markdown(io)
+  in .html?
+    format_html(io)
+  in .json?
+    format_json(io)
+  in .yaml?
+    format_yaml(io)
+  end
+end
+```
+
+This ensures that if a new value is added to the `OutputFormat` enum, it _must_ be added to the case statement in order to successfully compile.
+
+Note that an enum defines test methods like those above (`#lower_case_value?`) to make case statements like this and tests for equality to be easier to write. `color.blue?` is much simpler and clearer than `color == ::Some::Namespace::Color::BLUE`.
+
+Also note that the compiler allows a `Symbol` to be passed as a parameter in place of an `enum` when the expected value type is not a union.
+
+For example, using the `OutputFormat` enum and `#format` method from above:
+
+```Crystal
+format io, :text
 ```
