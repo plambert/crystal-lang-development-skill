@@ -10,7 +10,7 @@ that discipline easy).
 ## Standard Pattern
 
 ```crystal
-require "option_parser"  # NOT used — this is the hand-rolled style
+# require "option_parser"  # NOT used — this is the hand-rolled style
 
 HELP = <<-HELP
   Usage: my-tool [options] [arguments]
@@ -61,17 +61,24 @@ class MyTool
 end
 ```
 
+### Testing
+
+Do not ever try to introspect PROGRAM_NAME in order to decide if the code is being included as a
+library, or if it's the CLI. This is a compiled language. Create a src/cli.cr that executes the CLI,
+and point shard.yml to it. Then specs can require the library file without it executing the command
+line tool during the tests.
+
 ### Key conventions
 
-- `opts = ARGV.dup` as the default keeps `ARGV` intact and makes the constructor testable
+* `opts = ARGV.dup` as the default keeps `ARGV` intact and makes the constructor testable
   by passing a hand-built `Array(String)`.
-- Use `opts.shift?` (returns `String?`) in the `while` condition — when the array is empty
+* Use `opts.shift?` (returns `String?`) in the `while` condition — when the array is empty
   it returns `nil` and the loop exits cleanly.
-- When an option requires a value, use `opts.shift?` and raise `ArgumentError` on `nil`,
+* When an option requires a value, use `opts.shift?` and raise `ArgumentError` on `nil`,
   so the error message names the flag.
-- Unknown flags that start with `--` (or `-`) should raise rather than silently skip.
+* Unknown flags that start with `--` (or `-`) should raise rather than silently skip.
   Non-flag arguments (no leading `-`) go into a positional accumulator.
-- The `HELP` heredoc is the canonical source of truth for option documentation. Keep it
+* The `HELP` heredoc is the canonical source of truth for option documentation. Keep it
   adjacent to the parser so it's easy to update both in the same edit.
 
 ---
@@ -114,7 +121,8 @@ def initialize(opts = ARGV.dup)
 end
 ```
 
-Each subcommand class has the same `initialize(opts = ARGV.dup)` pattern and its own `HELP` constant.
+Each subcommand class has the same `initialize(opts = ARGV.dup)` pattern and its own `HELP`
+constant.
 
 ---
 
@@ -148,8 +156,8 @@ end
 
 The stdlib `OptionParser` (`require "option_parser"`) is worth considering when:
 
-- You need `--flag[=VALUE]` optional-value syntax (the hand-rolled pattern struggles with this).
-- You want auto-generated help text from the flag definitions.
+* You need `--flag[=VALUE]` optional-value syntax (the hand-rolled pattern struggles with this).
+* You want auto-generated help text from the flag definitions.
 
 If you use `OptionParser`, still write a `HELP` constant for the banner section (description and
 examples), since `OptionParser` only generates the flag table, not usage prose.

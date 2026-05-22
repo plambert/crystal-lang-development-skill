@@ -13,18 +13,28 @@ description: >
 This skill covers Paul's preferred style and tooling for Crystal (targeting 1.19+/1.20).
 For topics marked **→ see reference**, load the relevant file from `references/`.
 
+Quick notes:
+
+* Like ruby, crystal supports a trailing `if` and `unless`, but unlike ruby, it does _not_ support a
+  trailing `while` or `until`.
+
 ## Tooling Workflow
 
 ### Formatting
+
 Always format before committing:
-```
+
+```text
 crystal tool format src/path/to/file.cr
 ```
+
 Format the whole project at once with `crystal tool format` from the root (no path argument).
 
 ### Linting with ameba
-Always run ameba after formatting. Fix everything it reports **except** `Metrics/CyclomaticComplexity`
-on long `case` statements, which should instead be suppressed with a comment:
+
+Always run ameba after formatting. Fix everything it reports **except**
+`Metrics/CyclomaticComplexity` on long `case` statements, which should instead be suppressed with a
+comment:
 
 ```crystal
 # ameba:disable Metrics/CyclomaticComplexity
@@ -38,12 +48,14 @@ end
 ```
 
 Every repo needs `.ameba.yml` at the root. Create it if absent:
+
 ```yaml
 Metrics/CyclomaticComplexity:
   MaxComplexity: 20
 ```
 
 ### Building and testing
+
 ```bash
 shards install                          # after clone
 shards update                           # after editing shard.yml
@@ -52,14 +64,15 @@ crystal build --error-trace -o bin/foo examples/foo.cr   # one-off
 crystal spec -v --error-trace           # run tests
 ```
 
-- Create exploratory programs under `examples/`; promote them to `spec/` tests when they stabilize.
-- Prefer **Spectator** over stdlib Spec. → see `references/testing.md`
+* Create exploratory programs under `examples/`; promote them to `spec/` tests when they stabilize.
+* Prefer **Spectator** over stdlib Spec. → see `references/testing.md`
 
 ---
 
 ## Properties and Attribute Macros
 
-Always use a macro (`property`, `getter`, `setter`, and their variants) — never bare `@ivar` declarations.
+Always use a macro (`property`, `getter`, `setter`, and their variants) — never bare `@ivar`
+declarations.
 
 | Macro | Use when |
 |---|---|
@@ -79,16 +92,19 @@ the value could be mutated by another Fiber. Use it only when the lifecycle is c
 Never use `.not_nil!`. Use one of these patterns instead.
 
 ### `if` block — for brief, local use
+
 ```crystal
 if thing = self.thing
   thing.do_something   # compiler knows thing is not nil here
 end
 ```
+
 This only works when the value cannot be `false` (i.e., not `Bool | Nil`).
 
 ### `Guard` — for methods that hinge on a nilable attribute
 
 Add to `shard.yml`:
+
 ```yaml
 dependencies:
   guard:
@@ -121,11 +137,11 @@ end
 
 ## Naming
 
-- **No single-letter variable names** — not even in small blocks. `i`, `j`, `x`, `n` are all banned.
+* **No single-letter variable names** — not even in small blocks. `i`, `j`, `x`, `n` are all banned.
   Use descriptive names: `item_index`, `column_count`, `byte_value`.
-- Exception: `a` and `b` in `sort` block parameters are fine.
-- Do not use `_name` with a leading underscore to suppress "unused variable" warnings without a comment
-  explaining why the variable is intentionally ignored.
+* Exception: `a` and `b` in `sort` block parameters are fine.
+* Do not use `_name` with a leading underscore to suppress "unused variable" warnings without a
+  comment explaining why the variable is intentionally ignored.
 
 ---
 
@@ -158,7 +174,8 @@ in .json?       then format_json(io)
 end
 ```
 
-A `Symbol` can be passed where a non-union enum parameter is expected (`:text` for `OutputFormat::Text`).
+A `Symbol` can be passed where a non-union enum parameter is expected (`:text` for
+`OutputFormat::Text`).
 
 ---
 
@@ -229,7 +246,7 @@ property started_at : Time::Instant = Time.instant
 
 ---
 
-## CLI Argument Parsing
+## CLI Tools
 
 → see `references/cli.md`
 
