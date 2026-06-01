@@ -32,6 +32,11 @@ Format the whole project at once with `crystal tool format` from the root (no pa
 
 ### Linting with ameba
 
+Do _not_ install ameba as a development dependency; use the system-installed version instead, because
+it is a more recent build with more features and capabilities, and the build time for ameba is very
+long. `/opt/homebrew/bin/ameba` on macOS and `/usr/local/bin/ameba` on Linux. It should already be in
+the shell's `PATH`.
+
 Always run ameba after formatting. Fix everything it reports **except**
 `Metrics/CyclomaticComplexity` on long `case` statements, which should instead be suppressed with a
 comment:
@@ -47,7 +52,8 @@ def dispatch(command : Command) : Nil
 end
 ```
 
-Every repo needs `.ameba.yml` at the root. Create it if absent:
+Every repo needs `.ameba.yml` at the root. Create it if absent, copying the file from ~/.ameba.yml
+if it exists, otherwise using:
 
 ```yaml
 Metrics/CyclomaticComplexity:
