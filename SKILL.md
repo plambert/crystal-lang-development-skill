@@ -32,10 +32,10 @@ Format the whole project at once with `crystal tool format` from the root (no pa
 
 ### Linting with ameba
 
-Do _not_ install ameba as a development dependency; use the system-installed version instead, because
-it is a more recent build with more features and capabilities, and the build time for ameba is very
-long. `/opt/homebrew/bin/ameba` on macOS and `/usr/local/bin/ameba` on Linux. It should already be in
-the shell's `PATH`.
+Do _not_ install ameba as a development dependency; use the system-installed version instead,
+because it is a more recent build with more features and capabilities, and the build time for ameba
+is very long. `/opt/homebrew/bin/ameba` on macOS and `/usr/local/bin/ameba` on Linux. It should
+already be in the shell's `PATH`.
 
 Always run ameba after formatting. Fix everything it reports **except**
 `Metrics/CyclomaticComplexity` on long `case` statements, which should instead be suppressed with a
@@ -63,17 +63,45 @@ Metrics/CyclomaticComplexity:
 ### Building and testing
 
 ```bash
-shards install                          # after clone
-shards update                           # after editing shard.yml
-shards build --error-trace              # production build
-crystal build --error-trace -o bin/foo examples/foo.cr   # one-off
-crystal spec -v --error-trace           # run tests
+shards install                                            # after clone
+shards update                                             # after editing shard.yml
+shards build --no-debug --error-trace                     # fast dev build
+shards build --no-debug --error-trace --release           # production release build
+crystal build --error-trace --release \
+              -o bin/foo scratch/foo.cr                   # one-off
+crystal spec -v --error-trace                             # run tests, never with `--release`
 ```
 
-* Create exploratory programs under `examples/`; promote them to `spec/` tests when they stabilize.
+* Create exploratory programs under `scratch/`; promote them to `spec/` tests when they stabilize.
+* Don't commit `scratch/` to the main branch of a repo; it's fine in a work branch that will
+  eventually be removed, but it should only be for ephemeral code.
 * Prefer **Spectator** over stdlib Spec. → see `references/testing.md`
 
 ---
+
+## Version Number
+
+The default crystal scaffold has:
+
+```crystal
+  VERSION = "0.1.0"
+```
+
+The version number should instead be pulled from the `shard.yml`:
+
+```crystal
+  {% begin %}
+  VERSION = {{ `shards version`.strip.stringify }}
+  {% end %}
+```
+
+The `shards` command looks for the `shard.yml` file in the current directory, and then searches
+upward until it finds it. Don't assume this won't work when not in the root directory.
+
+The begin/end macros are needed so that when `crystal docs` is run, it doesn't show the macro as
+the value of the VERSION constant, but instead the stringified version.
+
+Make this change on every crystal project.
 
 ## Properties and Attribute Macros
 
@@ -147,7 +175,7 @@ end
   Use descriptive names: `item_index`, `column_count`, `byte_value`.
 * Exception: `a` and `b` in `sort` block parameters are fine.
 * Do not use `_name` with a leading underscore to suppress "unused variable" warnings without a
-  comment explaining why the variable is intentionally ignored.
+  comment explaining why the variable needs to be there.
 
 ---
 

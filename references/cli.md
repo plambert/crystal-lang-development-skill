@@ -1,26 +1,30 @@
 # CLI Argument Parsing in Crystal
 
-Paul's preferred style: hand-rolled `while opts.shift?` loop in `initialize`, with a
-synchronized `HELP` heredoc. This keeps argument handling explicit and avoids framework
-magic, at the cost of having to keep help text manually in sync (the pattern below makes
-that discipline easy).
+Paul's preferred style changes based on the size of the codebase.
+
+For a very small utility with no subcommands and very few options, and which is not going to be more
+than 1 source files, use the OptionParser class from the standard library.
+
+For anything larger, use Shell::AutoComplete, also below.
+
+## Small use case, no shard needed
+
+Use OptionParser (`require option_parser`), with a synchronized `HELP` heredoc. This
+makes argument handling explicit and avoids adding a shard, at the cost of having to keep the HELP
+text manually in sync (the pattern below makes that discipline easy).
+
+Be sure to have a `--version` flag that just outputs the `"#{PROGRAM_NAME} #{VERSION}"` and exits.
+Be sure to update the `VERSION = "0.1.0"` line as described in the base file of this skill.
 
 ---
 
-## Standard Pattern
+### OptionParser pattern
 
 ```crystal
-# require "option_parser"  # NOT used — this is the hand-rolled style
+require "option_parser"
 
 HELP = <<-HELP
   Usage: my-tool [options] [arguments]
-
-  Options:
-    --output PATH       Write output to PATH (default: stdout)
-    --format FORMAT     Output format: text, json, yaml (default: text)
-    --verbose           Enable verbose logging
-    --dry-run           Show what would happen without doing it
-    --help              Show this help
 
   Arguments:
     FILES               One or more input files to process
@@ -38,95 +42,40 @@ class MyTool
   property files : Array(String) = [] of String
 
   def initialize(opts = ARGV.dup)
-    while opt = opts.shift?
-      case opt
-      when "--output"
-        @output_path = opts.shift? || raise ArgumentError.new "--output requires a PATH argument"
-      when "--format"
-        @format = opts.shift? || raise ArgumentError.new "--format requires a FORMAT argument"
-      when "--verbose"
-        @verbose = true
-      when "--dry-run"
-        @dry_run = true
-      when "--help", "-h"
-        puts HELP
+    parser = OptionParser.new do |parser|
+      parser.banner = HELP
+      parser.on("--output PATH", "Write output to PATH (default: stdout)") { |path| @output_path = path }
+      parser.on("--format FORMAT", "Output format: text, json, yaml (default: text)") { |fmt| @format = fmt }
+      parser.on("--verbose", "Enable verbose logging") { @verbose = true }
+      parser.on("--dry-run", "Show what would happen without doing it") { @dry_run = true }
+      parser.on("--help", "Show this help") do
+        puts parser
         exit 0
-      when /\A--/
-        raise ArgumentError.new "#{opt}: unknown option"
-      else
-        @files << opt
       end
+      parser.invalid_option { |opt| raise ArgumentError.new "#{opt}: unknown option" }
+      parser.unknown_args { |args| @files.concat args }
     end
+    parser.parse(opts)
   end
 end
 ```
 
-### Testing
-
-Do not ever try to introspect PROGRAM_NAME in order to decide if the code is being included as a
-library, or if it's the CLI. This is a compiled language. Create a src/cli.cr that executes the CLI,
-and point shard.yml to it. Then specs can require the library file without it executing the command
-line tool during the tests.
-
-### Key conventions
+#### Key conventions
 
 * `opts = ARGV.dup` as the default keeps `ARGV` intact and makes the constructor testable
-  by passing a hand-built `Array(String)`.
-* Use `opts.shift?` (returns `String?`) in the `while` condition — when the array is empty
-  it returns `nil` and the loop exits cleanly.
-* When an option requires a value, use `opts.shift?` and raise `ArgumentError` on `nil`,
-  so the error message names the flag.
-* Unknown flags that start with `--` (or `-`) should raise rather than silently skip.
-  Non-flag arguments (no leading `-`) go into a positional accumulator.
-* The `HELP` heredoc is the canonical source of truth for option documentation. Keep it
-  adjacent to the parser so it's easy to update both in the same edit.
+  by passing a hand-built `Array(String)`. `parser.parse(opts)` consumes the copy, not `ARGV`.
+* Each `parser.on` block sets a property directly; flags that take a value (`--output PATH`)
+  receive it as the block argument, so OptionParser handles the "requires an argument" error.
+* `parser.invalid_option` raises `ArgumentError` so unknown flags fail loudly rather than
+  being silently skipped.
+* `parser.unknown_args` collects the non-flag positional arguments into the accumulator.
+* The `HELP` banner covers only what OptionParser can't generate — the usage line, the
+  positional `Arguments`, and `Examples`. The `Options:` section is generated from the
+  `on` descriptions, so `puts parser` prints the banner followed by the option list.
 
 ---
 
-## Keeping HELP in Sync
-
-The heredoc approach doesn't enforce sync automatically. A few habits help:
-
-1. Add each `when` arm and its `HELP` line in the same commit.
-2. Order options alphabetically in both the `case` and the `HELP` block.
-3. In code review (or ameba custom rules), verify that every `when "--foo"` arm has a
-   corresponding line in HELP — this is currently a manual check.
-
----
-
-## Subcommands
-
-For tools with subcommands, parse the first non-flag argument as the command, then delegate
-remaining `opts` to a subcommand-specific parser:
-
-```crystal
-def initialize(opts = ARGV.dup)
-  while opt = opts.shift?
-    case opt
-    when "serve"
-      @command = ServeCommand.new(opts)
-      return
-    when "migrate"
-      @command = MigrateCommand.new(opts)
-      return
-    when "--help", "-h"
-      puts HELP
-      exit 0
-    when /\A--/
-      raise ArgumentError.new "#{opt}: unknown option"
-    else
-      raise ArgumentError.new "#{opt}: unknown subcommand"
-    end
-  end
-end
-```
-
-Each subcommand class has the same `initialize(opts = ARGV.dup)` pattern and its own `HELP`
-constant.
-
----
-
-## Testing the Parser
+#### Testing the Parser
 
 Because the constructor accepts `Array(String)`, it is trivially testable with Spectator:
 
@@ -152,12 +101,23 @@ end
 
 ---
 
-## When to Reach for OptionParser Instead
+## Shell::AutoComplete
 
-The stdlib `OptionParser` (`require "option_parser"`) is worth considering when:
+Add to `shard.yml`:
 
-* You need `--flag[=VALUE]` optional-value syntax (the hand-rolled pattern struggles with this).
+```yaml
+dependencies:
+  shell-auto_complete:
+    github: plambert/shell-auto_complete.cr
+```
+
+Run `shards install` and then the `./lib/shell-auto_complete/SKILL.md` tells you how to use it.
+
+### When to use
+
+Use the shard when:
+
+* You need subcommands
+* You have more than 4 or 5 flags (not counting boolean negations)
 * You want auto-generated help text from the flag definitions.
-
-If you use `OptionParser`, still write a `HELP` constant for the banner section (description and
-examples), since `OptionParser` only generates the flag table, not usage prose.
+* The flags are complicated enough that shell completion is going to be useful
