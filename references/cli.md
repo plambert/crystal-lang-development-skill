@@ -23,16 +23,18 @@ Be sure to update the `VERSION = "0.1.0"` line as described in the base file of 
 ```crystal
 require "option_parser"
 
-HELP = <<-HELP
+HELP_BANNER = <<-HELP_BANNER
   Usage: my-tool [options] [arguments]
+  HELP_BANNER
 
+HELP_FOOTER = <<-HELP_FOOTER
   Arguments:
     FILES               One or more input files to process
 
   Examples:
     my-tool --format json input.txt
     my-tool --output /tmp/out.txt --verbose a.txt b.txt
-  HELP
+  HELP_FOOTER
 
 class MyTool
   property output_path : String?
@@ -43,13 +45,14 @@ class MyTool
 
   def initialize(opts = ARGV.dup)
     parser = OptionParser.new do |parser|
-      parser.banner = HELP
+      parser.banner = HELP_BANNER
       parser.on("--output PATH", "Write output to PATH (default: stdout)") { |path| @output_path = path }
       parser.on("--format FORMAT", "Output format: text, json, yaml (default: text)") { |fmt| @format = fmt }
       parser.on("--verbose", "Enable verbose logging") { @verbose = true }
       parser.on("--dry-run", "Show what would happen without doing it") { @dry_run = true }
       parser.on("--help", "Show this help") do
         puts parser
+        puts HELP_FOOTER
         exit 0
       end
       parser.invalid_option { |opt| raise ArgumentError.new "#{opt}: unknown option" }
@@ -69,9 +72,11 @@ end
 * `parser.invalid_option` raises `ArgumentError` so unknown flags fail loudly rather than
   being silently skipped.
 * `parser.unknown_args` collects the non-flag positional arguments into the accumulator.
-* The `HELP` banner covers only what OptionParser can't generate — the usage line, the
-  positional `Arguments`, and `Examples`. The `Options:` section is generated from the
-  `on` descriptions, so `puts parser` prints the banner followed by the option list.
+* The `HELP_BANNER` sets the banner written by the `OptionParser#to_s` method. That method shows the
+  banner followed by the options it knows about. What OptionParser can't generate — the usage line,
+  the positional `Arguments`, and `Examples` are in the HELP_FOOTER. The `Options:` section is
+  generated from the `on` descriptions, so `puts parser` prints the banner followed by the option
+  list.
 
 ---
 
