@@ -18,6 +18,37 @@ Quick notes:
 * Like ruby, crystal supports a trailing `if` and `unless`, but unlike ruby, it does _not_ support a
   trailing `while` or `until`.
 
+## First Time Working on a Project
+
+When you first start working on a Crystal project that is one of Paul's own — meaning it has **no
+git remote at all**, or **every** git remote points at one of these — run the three setup steps
+below:
+
+* `yakko:` or `yakko.plambert.net:`
+* `github:plambert/*`
+
+Check with `git remote -v`. If there are no remotes, or all of them match the patterns above, the
+project is Paul's; if any remote points elsewhere, skip these steps (it's a third-party project).
+
+1. **Pin the VERSION constant.** Wherever `VERSION` is set under `src/**`, replace it with the
+   macro form so the version is read from `shard.yml` at build time:
+
+   ```crystal
+   {% begin %}
+   VERSION = {{ `shards version`.strip.stringify }}
+   {% end %}
+   ```
+
+   See [Version Number](#version-number) for why the `begin`/`end` wrapper is required.
+
+2. **Install the ameba config.** If `~/.ameba.yml` exists, copy it to `.ameba.yml` at the project
+   root. See [Linting with ameba](#linting-with-ameba) for the fallback when it doesn't exist.
+
+3. **Format the Markdown.** If `rumdl` is on the `PATH`, run `rumdl fmt *.md` from the project root.
+
+If the repository has **no commits at all** (`git rev-parse HEAD` fails), commit these changes once
+they're made with the message `initial commit`.
+
 ## Tooling Workflow
 
 ### Formatting
