@@ -65,8 +65,8 @@ Format the whole project at once with `crystal tool format` from the root (no pa
 
 Do _not_ install ameba as a development dependency; use the system-installed version instead,
 because it is a more recent build with more features and capabilities, and the build time for ameba
-is very long. It should already be in the shell's `PATH`, otherwise check `~/.nix-profile/bin/ameba`
-or `/usr/local/bin/ameba` or (on MacOS) `/opt/homebrew/bin/ameba`.
+is very long. It should already be in the shell's `PATH`; otherwise it is at
+`~/.nix-profile/bin/ameba` on every host.
 
 Always run ameba after formatting. Fix everything it reports **except**
 `Metrics/CyclomaticComplexity` on long `case` statements, which should instead be suppressed with a
