@@ -126,3 +126,58 @@ Use the shard when:
 * You have more than 4 or 5 flags (not counting boolean negations)
 * You want auto-generated help text from the flag definitions.
 * The flags are complicated enough that shell completion is going to be useful
+
+## Output to a pipe
+
+When a CLI is run with its output sent via a pipe to a command like `less` or `more`, and the pager
+or other destination exits before the CLI has written all the output, writes to STDOUT/STDERR will
+raise an IO::Error about a "Broken pipe".
+
+It's important to rescue this near each place that output is written to STDOUT/STDERR (or where it
+could be writing to STDOUT/STDERR) and handle it cleanly. The CLI should not produce a stack trace
+and exit with an error code when this happens.
+
+If there are no side effects that happen after writing the output, then exiting cleanly when
+catching this is acceptable:
+
+```crystal
+def run
+  # do work...
+  write_output STDOUT
+end
+
+def write_output(io = STDOUT)
+  1_000.times do
+    io.puts "w00t!"
+  end
+rescue e : IO::Error
+  raise e unless e.message =~ /Broken pipe/
+  exit 0
+end
+```
+
+However, if there are side effects that may happen after the output is written, then it's important
+to still allow them to happen:
+
+```crystal
+def run
+  # do work...
+  write_output STDOUT
+  File.delete @tmpfile
+end
+
+def write_output(io = STDOUT)
+  1_000.times do
+    io.puts "w00t!"
+  end
+rescue e : IO::Error
+  raise e unless e.message =~ /Broken pipe/
+end
+```
+
+For this reason it can be advantageous to organize the tool so that writing output happens after any
+side effects. This is not always the right thing to do, though, so consider the consequences. For
+example, if output is small (a few hundred kilobytes) then generating the dataset in memory and then
+writing it at the end of execution can be good, but if it's possible the dataset it too large to
+make sense keeping in memory, or writing a progress update of a long running task, then the failed
+writes should just be silently ignored.

@@ -83,8 +83,8 @@ def dispatch(command : Command) : Nil
 end
 ```
 
-Every repo needs `.ameba.yml` at the root. Create it if absent, copying the file from ~/.ameba.yml
-if it exists, otherwise using:
+Every crystal language repo needs `.ameba.yml` at the root. Create it if absent, copying the file
+from ~/.ameba.yml if it exists, otherwise using:
 
 ```yaml
 Metrics/CyclomaticComplexity:
