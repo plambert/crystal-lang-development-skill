@@ -5,7 +5,9 @@ description: >
   Use this skill whenever writing, reviewing, or refactoring Crystal source code, working with
   shards, setting up tests, handling CLI argument parsing, working with time/duration types,
   or configuring ameba. Also use when the user mentions .cr files, shard.yml, crystal spec,
-  or asks about Crystal idioms, nillability, enums, properties, or stdlib types.
+  or asks about Crystal idioms, nillability, enums, properties, or stdlib types. Covers
+  publishing versioned API docs to plambert.github.io — use when asked to publish crystal
+  docs, add a docs workflow, or set up GitHub Pages for a Crystal repo.
 ---
 
 # Crystal Development
@@ -320,6 +322,13 @@ property started_at : Time::Instant = Time.instant
 ## Testing with Spectator
 
 → see `references/testing.md`
+
+---
+
+## Publishing API Docs to GitHub Pages
+
+Versioned `crystal docs` for every `v*` tag on plambert.github.io, with the
+crystal-lang.org-style version dropdown. → see `references/docs-github-pages.md`
 
 ---
 
